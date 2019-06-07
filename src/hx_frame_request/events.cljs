@@ -1,0 +1,203 @@
+(ns hx-frame-request.events
+  (:require [ajax.core :as ajax]
+            [goog.net.ErrorCode :as errors]
+            [hx-frame.core :as hx-frame]))
+
+(defn ajax-xhrio-handler
+  {:attribution "https://github.com/Day8/re-frame-http-fx"
+   :doc "ajax-request only provides a single handler for success and errors"}
+  [on-success on-failure xhrio [success? response]]
+  (if success?
+    (on-success response)
+    (let [details (merge
+                   {:uri             (.getLastUri xhrio)
+                    :last-method     (.-lastMethod_ xhrio)
+                    :last-error      (.getLastError xhrio)
+                    :last-error-code (.getLastErrorCode xhrio)
+                    :debug-message   (-> xhrio
+                                         .getLastErrorCode
+                                         (errors/getDebugMessage))}
+                   response)]
+      (on-failure details))))
+
+(defn request->xhrio-options
+  {:attribution "https://github.com/Day8/re-frame-http-fx"
+   :doc "Formats the xhr options"}
+  [{:as   request
+    :keys [on-success on-failure]}]
+  (let [api (new js/goog.net.XhrIo)]
+    (-> request
+        (assoc
+         :api     api
+         :handler (partial ajax-xhrio-handler
+                           #(on-success %)
+                           #(on-failure %)
+                           api))
+        (dissoc :on-success :on-failure))))
+
+(defn wrap-success!
+  "Wraps the passed in on-success callback"
+  [on-success name request-time]
+  (fn [response]
+    (hx-frame/dispatch [:hx-frame-request/done
+                        {:status :success
+                         :name name
+                         :error nil
+                         :request-time request-time}])
+    (hx-frame/dispatch (conj on-success response))))
+
+(defn wrap-failure!
+  "Wraps the passed in on-failure callback"
+  [on-failure name request-time]
+  (fn [error]
+    (hx-frame/dispatch [:hx-frame-request/done
+                        {:status :failure
+                         :name name
+                         :error error
+                         :request-time request-time}])
+    (hx-frame/dispatch (conj on-failure error))))
+
+(defn wrap-progress!
+  "Wraps progress event"
+  [on-progress _ _]
+  (fn [progress-event]
+    (when (some? on-progress)
+      (hx-frame/dispatch (conj on-progress progress-event)))))
+
+(defn track-request!
+  "Kicks off the request tracking process"
+  [name request-time]
+  (hx-frame/dispatch [:hx-frame-request/start
+                      {:name name
+                       :request-time request-time}]))
+
+(defn format-response-kw->fn
+  [name]
+  (fn [kw]
+    (if-not (nil? kw)
+      (case kw
+        :transit (ajax/transit-response-format)
+        :json (ajax/json-response-format {:keywords? true})
+        :ring (ajax/ring-response-format)
+        :text (ajax/text-response-format)
+        :raw (ajax/raw-response-format)
+        (js/console.error (str "Response format " (pr-str kw)
+                               " is not a vaild format for request \""
+                               name "\"")))
+      (js/console.warn (str "Missing response format for xhr request \""
+                            name "\"")))))
+
+(defn format-request-kw->fn
+  [name]
+  (fn [kw]
+    (when-not (nil? kw)
+      (case kw
+        :transit (ajax/transit-request-format)
+        :json (ajax/json-request-format)
+        :url (ajax/url-request-format)
+        :text (ajax/text-request-format)
+        (js/console.error (str "Request format " (pr-str kw)
+                               " is not a vaild format for request \""
+                               name "\""))))))
+
+(defn- handle-request
+  [{:as request
+    :keys [name
+           on-success
+           on-failure
+           on-progress]
+    :or {:on-success [:hx-frame-request/http-no-on-success]
+         :on-failure [:hx-frame-request/http-no-on-failure]}}]
+  (try
+    (let [seq-request-maps (if (sequential? request) request [request])
+          request-time (.getTime (js/Date.))]
+
+      (track-request! name request-time)
+
+      (doseq [request seq-request-maps]
+        (-> request
+            (assoc :progress-handler (wrap-progress! on-progress
+                                                     name
+                                                     request-time))
+            (assoc :on-success (wrap-success! on-success
+                                              name
+                                              request-time))
+            (assoc :on-failure (wrap-failure! on-failure
+                                              name
+                                              request-time))
+            (update :response-format (format-response-kw->fn name))
+            (update :format (format-request-kw->fn name))
+            (dissoc :name)
+            request->xhrio-options
+            ajax/ajax-request)))
+    (catch js/Error e
+      (js/console.error
+       (clj->js {:error-message (str "Failed to format request object for "
+                                     " '" name "'.")
+                 :error e})))))
+
+(defn- handle-mock
+  [{:keys [name
+           on-success
+           on-failure
+           mock]
+    :or {:on-success [:hx-frame-request/http-no-on-success]
+         :on-failure [:hx-frame-request/http-no-on-failure]}}]
+  (let [{:keys [time data error]
+         :or {time 200}} mock
+        request-time (.getTime (js/Date.))]
+
+    (track-request! name request-time)
+
+    (.setTimeout
+     js/window
+     (fn []
+       (if error
+         ((wrap-failure! on-failure name request-time) error)
+         ((wrap-success! on-success name request-time) data)))
+     time)))
+
+(defn request-start
+  [db [_ {:keys [name request-time]}]]
+  (assoc-in db [:hx-frame-request name] {:status :loading
+                                         :request-time request-time
+                                         :error nil}))
+
+(defn request-done
+  [db [_ {:keys [name request-time error status]}]]
+  (assoc-in db [:hx-frame-request name] {:status status
+                                         :request-time request-time
+                                         :error error}))
+
+(defn request-reset
+  [db [_ request-name]]
+  (update db :hx-frame-request dissoc request-name))
+
+(defn register-events
+  [{:keys [start-interceptors
+           done-interceptors
+           reset-interceptors
+           request-interceptors]
+    :or {start-interceptors []
+         done-interceptors []
+         reset-interceptors []
+         request-interceptors []}}]
+
+  (hx-frame/register-event
+   :hx-frame-request/start
+   (into request-interceptors start-interceptors)
+   request-start)
+
+  (hx-frame/register-event
+   :hx-frame-request/done
+   (into request-interceptors done-interceptors)
+   request-done)
+
+  (hx-frame/register-event
+   :hx-frame-request/reset
+   (into request-interceptors reset-interceptors)
+   request-reset)
+
+  (hx-frame/register-effect :request handle-request)
+
+  (hx-frame/register-effect :request-mock handle-mock))

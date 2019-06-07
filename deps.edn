@@ -1,0 +1,4 @@
+{:deps {oconn/hx-frame {:local/root "../hx-frame"}
+        org.clojure/clojurescript {:mvn/version "1.10.520"}
+        cljs-ajax {:mvn/version "0.8.0"}}
+ :paths ["src"]}
