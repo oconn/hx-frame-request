@@ -1,7 +1,6 @@
 (ns hx-frame-request.core-test
   (:require
    [cljs.test :refer-macros [deftest is testing]]
-   [clojure.set :refer [difference]]
 
    [hx-frame.registrar :as hx-frame-registrar]
    [hx-frame-request.core :as c]))
@@ -19,38 +18,44 @@
 (deftest register-events
   (c/register-events {})
 
-  (let [{:keys [event effect]} @hx-frame-registrar/registrar]
+  (testing "Registers hx-frame-request events with hx-frame's registry"
+    (is (->> hx-frame-request-events
+             (map (partial hx-frame-registrar/get-handler :event))
+             (remove some?)
+             (empty?))))
 
-    (testing "Registers hx-frame-request events with hx-frame's registry"
-      (is (empty? (difference (-> event keys set)
-                              hx-frame-request-events))))
+  (testing "Registers hx-frame-request effects with hx-frame's registry"
+    (is (->> hx-frame-request-effects
+             (map (partial hx-frame-registrar/get-handler :effect))
+             (remove some?)
+             (empty?)))))
 
-    (testing "Registers hx-frame-request effects with hx-frame's registry"
-      (is (empty? (difference (-> effect keys set)
-                              hx-frame-request-effects))))))
-
-(deftest register-events
+(deftest register-subscriptions
   (c/register-subscriptions)
 
-  (let [{:keys [subscription]} @hx-frame-registrar/registrar]
-
-    (testing "Registers hx-frame-request subscriptions with hx-frame's registry"
-      (is (empty? (difference (-> subscription keys set)
-                              hx-frame-request-subscriptions))))))
+  (testing "Registers hx-frame-request subscriptions with hx-frame's registry"
+    (is (->> hx-frame-request-subscriptions
+             (map (partial hx-frame-registrar/get-handler :subscription))
+             (remove some?)
+             (empty?)))))
 
 (deftest register-all
   (c/register-all {})
 
-  (let [{:keys [event effect subscription]} @hx-frame-registrar/registrar]
+  (testing "Registers hx-frame-request events with hx-frame's registry"
+    (is (->> hx-frame-request-events
+             (map (partial hx-frame-registrar/get-handler :event))
+             (remove some?)
+             (empty?))))
 
-    (testing "Registers hx-frame-request events with hx-frame's registry"
-      (is (empty? (difference (-> event keys set)
-                              hx-frame-request-events))))
+  (testing "Registers hx-frame-request effects with hx-frame's registry"
+    (is (->> hx-frame-request-effects
+             (map (partial hx-frame-registrar/get-handler :effect))
+             (remove some?)
+             (empty?))))
 
-    (testing "Registers hx-frame-request effects with hx-frame's registry"
-      (is (empty? (difference (-> effect keys set)
-                              hx-frame-request-effects))))
-
-    (testing "Registers hx-frame-request subscriptions with hx-frame's registry"
-      (is (empty? (difference (-> subscription keys set)
-                              hx-frame-request-subscriptions))))))
+  (testing "Registers hx-frame-request subscriptions with hx-frame's registry"
+    (is (->> hx-frame-request-subscriptions
+             (map (partial hx-frame-registrar/get-handler :subscription))
+             (remove some?)
+             (empty?)))))
