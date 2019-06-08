@@ -1,4 +1,7 @@
 {:deps {oconn/hx-frame {:local/root "../hx-frame"}
         org.clojure/clojurescript {:mvn/version "1.10.520"}
         cljs-ajax {:mvn/version "0.8.0"}}
- :paths ["src"]}
+ :paths ["src"]
+ :aliases {:test {:extra-paths ["test"]
+                  :extra-deps {olical/cljs-test-runner {:mvn/version "3.5.0"}}
+                  :main-opts ["-m" "cljs-test-runner.main"]}}}

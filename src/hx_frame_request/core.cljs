@@ -9,7 +9,7 @@
   "Initial hx-frame-request state.
 
   All requests are associated into a map."
-  {})
+  {:hx-frame-request {}})
 
 ;; Specs for each individual request
 (s/def ::status #{:loading :success :failure})
