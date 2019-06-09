@@ -183,17 +183,17 @@
          reset-interceptors []
          request-interceptors []}}]
 
-  (hx-frame/register-event
+  (hx-frame/register-event-db
    :hx-frame-request/start
    (into request-interceptors start-interceptors)
    request-start)
 
-  (hx-frame/register-event
+  (hx-frame/register-event-db
    :hx-frame-request/done
    (into request-interceptors done-interceptors)
    request-done)
 
-  (hx-frame/register-event
+  (hx-frame/register-event-db
    :hx-frame-request/reset
    (into request-interceptors reset-interceptors)
    request-reset)
