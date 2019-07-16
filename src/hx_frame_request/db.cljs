@@ -11,6 +11,7 @@
 (s/def ::status #{:loading :success :failure})
 (s/def ::request-time number?)
 (s/def ::error (s/nilable map?))
-(s/def ::request (s/map-of keyword? (s/keys :req-un [::status
-                                                     ::request-time
-                                                     ::error])))
+
+(s/def ::hx-frame-request (s/map-of keyword? (s/keys :req-un [::status
+                                                              ::request-time
+                                                              ::error])))
